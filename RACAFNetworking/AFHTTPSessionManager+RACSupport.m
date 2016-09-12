@@ -33,8 +33,7 @@ NSString *const RACAFNResponseObjectErrorKey = @"responseObject";
 	return [[RACSignal createSignal:^(id<RACSubscriber> subscriber) {
 		NSMutableURLRequest *request = [self.requestSerializer multipartFormRequestWithMethod:@"POST" URLString:[[NSURL URLWithString:path relativeToURL:self.baseURL] absoluteString] parameters:parameters constructingBodyWithBlock:block error:nil];
 		
-        NSProgress *progress;
-        NSURLSessionDataTask *task = [[AFHTTPSessionManager manager] uploadTaskWithStreamedRequest:request progress:&progress completionHandler:^(NSURLResponse *response, id responseObject, NSError *error) {
+        NSURLSessionDataTask *task = [self dataTaskWithRequest:request completionHandler:^(NSURLResponse *response, id responseObject, NSError *error) {
             if (error) {
                 NSMutableDictionary *userInfo = [error.userInfo mutableCopy];
                 if (responseObject) {
@@ -49,13 +48,43 @@ NSString *const RACAFNResponseObjectErrorKey = @"responseObject";
         }];
         
 		[task resume];
-		[progress addObserver:self forKeyPath:@"fractionCompleted" options:NSKeyValueObservingOptionNew context:NULL];
         
 		return [RACDisposable disposableWithBlock:^{
 			[task cancel];
 		}];
 	}] setNameWithFormat:@"%@ -rac_POST: %@, parameters: %@, constructingBodyWithBlock:", self.class, path, parameters];
-;
+}
+
+- (RACSignal *)rac_POST:(NSString *)path parameters:(id)parameters progressSignal:(RACSubject *)progressSignal constructingBodyWithBlock:(void (^)(id <AFMultipartFormData> formData))block {
+    return [[RACSignal createSignal:^(id<RACSubscriber> subscriber) {
+        NSMutableURLRequest *request = [self.requestSerializer multipartFormRequestWithMethod:@"POST" URLString:[[NSURL URLWithString:path relativeToURL:self.baseURL] absoluteString] parameters:parameters constructingBodyWithBlock:block error:nil];
+        
+        NSProgress *progress;
+        
+        NSURLSessionDataTask *task = [[AFHTTPSessionManager manager] uploadTaskWithStreamedRequest:request progress:&progress completionHandler:^(NSURLResponse *response, id responseObject, NSError *error) {
+            if (error) {
+                NSMutableDictionary *userInfo = [error.userInfo mutableCopy];
+                if (responseObject) {
+                    userInfo[RACAFNResponseObjectErrorKey] = responseObject;
+                }
+                NSError *errorWithRes = [NSError errorWithDomain:error.domain code:error.code userInfo:[userInfo copy]];
+                [subscriber sendError:errorWithRes];
+            } else {
+                [subscriber sendNext:RACTuplePack(responseObject, response)];
+                [subscriber sendCompleted];
+            }
+        }];
+        
+        [task resume];
+        
+        [RACObserve(progress, fractionCompleted) subscribeNext:^(id x) {
+            [progressSignal sendNext:x];
+        }];
+        
+        return [RACDisposable disposableWithBlock:^{
+            [task cancel];
+        }];
+    }] setNameWithFormat:@"%@ -rac_POST: %@, parameters: %@, constructingBodyWithBlock:", self.class, path, parameters];
 }
 
 - (RACSignal *)rac_PUT:(NSString *)path parameters:(id)parameters {

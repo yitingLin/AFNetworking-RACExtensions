@@ -31,6 +31,10 @@ extern NSString *const RACAFNResponseObjectErrorKey;
 /// cold signal of the resulting JSON object and response headers or error.
 - (RACSignal *)rac_POST:(NSString *)path parameters:(id)parameters constructingBodyWithBlock:(void (^)(id <AFMultipartFormData> formData))block;
 
+/// A convenience around -POST:parameters:constructingBodyWithBlock:success:failure: that returns a
+/// cold signal of the resulting JSON object and response headers or error with progress.
+- (RACSignal *)rac_POST:(NSString *)path parameters:(id)parameters progressSignal:(RACSubject *)progressSignal constructingBodyWithBlock:(void (^)(id <AFMultipartFormData> formData))block;
+
 /// A convenience around -PUT:parameters:success:failure: that returns a cold signal of the
 /// resulting JSON object and response headers or error.
 - (RACSignal *)rac_PUT:(NSString *)path parameters:(id)parameters;
